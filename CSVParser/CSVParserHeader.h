@@ -25,31 +25,22 @@ private:
 	std::string errorMessage;
 	std::string functionName;
 };
-  
-void customSplit(std::string str, char separator, std::vector<std::string>& strings) {
-	int startIndex = 0, endIndex = 0;
-	for (int i = 0; i <= str.size(); i++) {
-		if (str[i] == separator || i == str.size()) {
-			endIndex = i;
-			std::string temp;
-			temp.append(str, startIndex, endIndex - startIndex);
-			strings.push_back(temp);
-			startIndex = endIndex + 1;
-		}
-	}
-}
 
 template <size_t Index, class... Types>
-void readLineToTuple(const std::vector<std::string>& strings, std::tuple<Types...>& tuple) {
+void readLineToTuple(size_t stringIndexForSplit, const std::string& str, char separator, std::tuple<Types...>& tuple) {
 	std::stringstream ss;
-	if (Index >= strings.size()) {
-		throw Exception("Count of words in string larger then count of arguments in tuple", __func__);
+	size_t startIndex = stringIndexForSplit, endIndex = stringIndexForSplit;
+	for (size_t i = stringIndexForSplit; i <= str.size(); i++) {
+		if (str[i] == separator || i == str.size()) {
+			endIndex = i;
+			std::string tmp = str.substr(startIndex, endIndex - startIndex);
+			ss << tmp;
+			ss >> std::get<Index>(tuple);
+			break;
+		}
 	}
-	ss << strings[Index];
-	ss >> std::get<Index>(tuple);
-
 	if constexpr (Index + 1 < sizeof...(Types)) {
-		readLineToTuple<Index + 1>(strings, tuple);
+		readLineToTuple<Index + 1>(endIndex + 1, str, ',', tuple);
 	}
 }
 
@@ -71,11 +62,8 @@ public:
 		size_t operator++() {
 			std::string line;
 			if (std::getline(ifs, line, ';')) {
-				std::vector<std::string> strings;
-				customSplit(line, ',', strings);
-
 				std::unique_ptr<TupleType> tp = std::make_unique<TupleType>();
-				readLineToTuple<0>(strings, *tp);
+				readLineToTuple<0>(0, line, ',', *tp);
 				point = std::move(tp);
 				curPos = ifs.tellg();
 			}
@@ -115,12 +103,9 @@ public:
 		while (count < skipCount && std::getline(ifs, line, ';')) {
 			count++;
 		}
-		if (std::getline(ifs, line, ';')) {
-			std::vector<std::string> strings;
-			customSplit(line, ',', strings);
-			
+		if (std::getline(ifs, line, ';')) {			
 			auto tp = std::make_unique<TupleType>();
-			readLineToTuple<0>(strings, *tp);
+			readLineToTuple<0>(0, line, ',', *tp);
 
 			Iterator iter(std::move(tp), ifs, ifs.tellg());
 			return iter;
