@@ -40,7 +40,7 @@ void readLineToTuple(size_t stringIndexForSplit, const std::string& str, char se
 		}
 	}
 	if constexpr (Index + 1 < sizeof...(Types)) {
-		readLineToTuple<Index + 1>(endIndex + 1, str, ',', tuple);
+		readLineToTuple<Index + 1>(endIndex + 1, str, separator, tuple);
 	}
 }
 
@@ -48,7 +48,8 @@ template<class... FieldTypes>
 class CSVParser {
 public:
 	using TupleType = std::tuple<FieldTypes...>;
-	CSVParser(std::ifstream& ifs, unsigned int count) : ifs(ifs), skipCount(count) {
+	CSVParser(std::ifstream& ifs, unsigned int count, char wordSeparator = ',', char stringSeparator = '\n') : ifs(ifs), 
+		skipCount(count), wordSeparator(wordSeparator), stringSeparator(stringSeparator) {
 		ifs.seekg(0, std::ios::end);
 		endPos = 1 + ifs.tellg();
 		ifs.clear();
@@ -58,12 +59,13 @@ public:
 	class Iterator
 	{
 	public:
-		Iterator(std::unique_ptr<TupleType> point, std::ifstream& ifs, size_t curPos) : point(std::move(point)), ifs(ifs), curPos(curPos) {}
+		Iterator(std::unique_ptr<TupleType> point, std::ifstream& ifs, size_t curPos, char wordSeparator, char stringSeparator) : point(std::move(point)), 
+			ifs(ifs), curPos(curPos), wordSeparator(wordSeparator), stringSeparator(stringSeparator) {}
 		size_t operator++() {
 			std::string line;
-			if (std::getline(ifs, line, ';')) {
+			if (std::getline(ifs, line, stringSeparator)) {
 				std::unique_ptr<TupleType> tp = std::make_unique<TupleType>();
-				readLineToTuple<0>(0, line, ',', *tp);
+				readLineToTuple<0>(0, line, wordSeparator, *tp);
 				point = std::move(tp);
 				curPos = ifs.tellg();
 			}
@@ -95,19 +97,21 @@ public:
 		std::unique_ptr<TupleType> point;
 		std::ifstream& ifs;
 		size_t curPos;
+		char wordSeparator;
+		char stringSeparator;
 	};
 	
 	Iterator begin() {
 		std::string line;
 		unsigned int count = 0;
-		while (count < skipCount && std::getline(ifs, line, ';')) {
+		while (count < skipCount && std::getline(ifs, line, stringSeparator)) {
 			count++;
 		}
-		if (std::getline(ifs, line, ';')) {			
+		if (std::getline(ifs, line, stringSeparator)) {
 			auto tp = std::make_unique<TupleType>();
-			readLineToTuple<0>(0, line, ',', *tp);
+			readLineToTuple<0>(0, line, wordSeparator, *tp);
 
-			Iterator iter(std::move(tp), ifs, ifs.tellg());
+			Iterator iter(std::move(tp), ifs, ifs.tellg(), wordSeparator, stringSeparator);
 			return iter;
 		}
 		else {
@@ -129,13 +133,15 @@ public:
 		}
 	}
 	Iterator end() {
-		Iterator iter(nullptr, ifs, endPos);
+		Iterator iter(nullptr, ifs, endPos, wordSeparator, stringSeparator);
 		return iter;
 	}
 private:
 	std::ifstream& ifs;
 	unsigned int skipCount;
 	size_t endPos;
+	char wordSeparator;
+	char stringSeparator;
 };
 
 template<typename TupleT, std::size_t... Is>
